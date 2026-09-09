@@ -40,6 +40,14 @@ immediately after the sandbox starts can beat the gateway to it. Wait for
 `~/.openclaw/gateway-ready`, the sentinel the script writes once `/readyz`
 is green (this is what `testdata/tck.yaml` polls as its `readyFile`).
 
+## What this kit assumes
+
+**Local sandboxes only.** The gateway is a long-lived process whose state lives
+in the sandbox, and the kit is built around a host workspace. A cloud sandbox
+(`sbx --cloud …`) has no host filesystem to bind-mount, and it is deleted when
+its `--ttl` lapses — one hour by default, server-side — so it is not a fit for
+a gateway you mean to keep.
+
 ## Step by step
 
 A first run, end to end. The reasoning behind each step is in

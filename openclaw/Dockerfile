@@ -53,10 +53,17 @@ RUN npm install -g n && n 24 && npm install -g "openclaw@${OPENCLAW_VERSION}"
 
 # Chromium + headless deps for openclaw's browser tool, shared system-wide.
 # `install --with-deps` apt-installs the runtime libraries; the browser
-# download itself goes to PLAYWRIGHT_BROWSERS_PATH below. Playwright 1.60
-# has no dependency map for the template's Ubuntu 26.04 yet — override the
-# host platform to 24.04 (same t64 package naming era) so the install
-# proceeds.
+# download itself goes to PLAYWRIGHT_BROWSERS_PATH below.
+#
+# The platform override is no longer strictly needed: it was added when
+# Playwright 1.60 had no dependency map for the template's Ubuntu 26.04, and
+# 2026.9.3's playwright-core 1.62.1 does carry an ubuntu26.04 entry whose
+# chromium apt list is identical to ubuntu24.04's. It is kept deliberately,
+# because BASE_IMAGE floats: on a platform Playwright has no map for,
+# `install --with-deps` prints "Cannot install dependencies" and exits 0, so a
+# template moving to an unmapped Ubuntu would publish a green image shipping a
+# Chromium with no runtime libraries. Pinning a mapped platform keeps that
+# state unreachable. gstack/Dockerfile pins it for the same reason.
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
 ARG TARGETARCH
 RUN apt-get update && apt-get install -y --no-install-recommends xvfb && \

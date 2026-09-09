@@ -31,6 +31,13 @@ permissions:
       # openrouter/...`). Confirmed necessary via a real e2e run under
       # deny-all.
       - openrouter.ai
+      # Deliberately absent: models.opencode.ai, which 2026.9.3 added a
+      # startup model/pricing catalog refresh against. The refresh is
+      # warn-only -- a gateway start under deny-all logs `remote model
+      # catalog refresh failed` and carries on -- and this kit exists to keep
+      # the credential's blast radius small, so a third-party host is not
+      # worth opening for pricing metadata. Add it here if the catalog is
+      # ever needed, rather than wondering why the log line is there.
       # Docker Hub, so `docker pull` works inside the sandbox: the image ships a
       # Docker client and an empty image store. Manifests, token auth, and the
       # blob CDN -- cloudfront, not cloudflare, which 403s on the blob fetch

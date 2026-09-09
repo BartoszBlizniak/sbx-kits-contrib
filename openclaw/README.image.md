@@ -7,7 +7,7 @@ Base image for the OpenClaw agent kit for
 
 Built on `docker/sandbox-templates:shell-docker`. On top of that:
 
-- Node 22 (OpenClaw requires >= 22.19)
+- Node 24 (OpenClaw 2026.9.3 requires >= 24.16.0 < 25, or >= 26.1.0)
 - `openclaw`, installed globally at a pinned version
 - Chromium + headless deps for OpenClaw's browser tool, under
   `PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright`

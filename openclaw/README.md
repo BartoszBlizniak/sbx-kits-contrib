@@ -6,7 +6,7 @@ assistant with multi-platform chat, skills, and a gateway service.
 
 Unlike the previous version of this kit (which npm-installed Node 22 and
 openclaw at sandbox creation, ~3 minutes on first boot), this kit uses a
-**pre-baked sandbox image**: Node 22, the pinned `openclaw` package, and
+**pre-baked sandbox image**: Node 24, the pinned `openclaw` package, and
 Chromium for the browser tool (saves the 60-90s playwright download on
 first browser use) all ship inside the image. The kit itself only
 applies policy, so a new sandbox is chatting in seconds.
@@ -275,7 +275,7 @@ directory:
 ```
 docker.io/sbx/openclaw-image
 └── FROM ${BASE_IMAGE}  (defaults to docker/sandbox-templates:shell-docker)
-    ├── Node 22 (openclaw requires >= 22.19)
+    ├── Node 24 (openclaw 2026.9.3 requires >= 24.16.0 < 25, or >= 26.1.0)
     ├── openclaw @ pinned version   npm global install (+ /usr/local/bin symlink)
     └── /opt/ms-playwright          Chromium + xvfb for the browser tool
 ```

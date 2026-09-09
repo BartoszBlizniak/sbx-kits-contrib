@@ -48,6 +48,34 @@ in the sandbox, and the kit is built around a host workspace. A cloud sandbox
 its `--ttl` lapses — one hour by default, server-side — so it is not a fit for
 a gateway you mean to keep.
 
+**Egress is only as narrow as the host policy.** The `network.allow` list in
+`spec.yaml` declares what this kit needs, and the runtime turns it into
+sandbox-scoped allow rules. Those are *additive*: they open what the kit needs
+on top of the host's global policy, and take nothing away. So the effective
+surface is the host's allowed set plus this list, minus anything the host
+denies — denies win over allows — and the default presets ship broad wildcards
+(`allow-all` is literally `**`; `balanced` carries zone-wide entries such as
+`**.googleapis.com`). "Egress is limited to a declared allowlist" therefore
+describes a host with a strict policy, not the kit on its own.
+
+The posture this kit is written for is `deny-all`, where the host contributes
+no network allows and the declared list is the whole surface. `sbx policy ls`
+shows where a host stands. Switching an already-initialised policy is not a
+one-liner: `policy init` fails as already-initialised, and `policy reset` opens
+an interactive chooser when its stdin is a terminal, which `--force` does not
+suppress. So it takes
+
+```console
+sbx policy reset --force </dev/null
+sbx policy init deny-all </dev/null
+```
+
+and it is global: the reset terminates every running sandbox, not only this
+kit's, and clears the policy for all of them. This repo's e2e runs every kit
+under `deny-all` in a daemon scoped by `--app-name`, which is why the declared
+list is known sufficient there — and why a domain missing from it is
+unreachable even when a credential block names it.
+
 ## Step by step
 
 A first run, end to end. The reasoning behind each step is in

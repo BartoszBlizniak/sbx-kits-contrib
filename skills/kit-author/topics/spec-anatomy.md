@@ -258,7 +258,9 @@ credentials:
 
 `bearer` supplies `header: Authorization` only when you left `header` empty, so writing an explicit `header:` alongside it still wins. `basic` is username-driven at the proxy rather than a header encoding, so it sets no `header` at all — write one yourself if the service needs a specific one.
 
-**Enforcement:** every `apiKey.inject[].domain` MUST appear in `permissions.network.allow`. There is no auto-derived egress from credentials. The spec validator does not cross-check the two lists; the engine enforces the rule, and a missing domain surfaces at load or sandbox-create time (SPEC-v2 §6).
+**Enforcement:** every `apiKey.inject[].domain` MUST appear in `permissions.network.allow`. There is no auto-derived egress from credentials. `sbx kit validate` warns (but does not fail) when it detects an uncovered domain; the engine performs the authoritative enforcement, and a missing domain surfaces at load or sandbox-create time (SPEC-v2 §6).
+
+An inject entry MUST also set at least one of `header` or `username` — one with neither has nothing for the proxy to inject and fails `sbx kit validate`.
 
 ### OAuth shape
 

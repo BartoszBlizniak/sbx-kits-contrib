@@ -315,6 +315,11 @@ func ValidateArtifact(a *Artifact) error {
 	if err := ValidateCommandsPolicy(a.Commands); err != nil {
 		return err
 	}
+	var allowedDomains []string
+	if a.Caps != nil && a.Caps.Network != nil {
+		allowedDomains = a.Caps.Network.Allow
+	}
+
 	for i, c := range a.Credentials {
 		// SPEC-v2 §5.4 makes service REQUIRED on every credential entry: it is
 		// the identity the user-side bindings file matches on. For OAuth it
@@ -331,8 +336,20 @@ func ValidateArtifact(a *Artifact) error {
 		if c.Service == "" {
 			return fmt.Errorf("artifact: credentials[%d]: service is required", i)
 		}
+		if err := ValidateApiKey(c.ApiKey, a.Manifest.SchemaVersion); err != nil {
+			return fmt.Errorf("artifact: credentials[%d] (service %q): %w", i, c.Service, err)
+		}
 		if err := ValidateOAuth(c.OAuth); err != nil {
 			return fmt.Errorf("artifact: credentials[%d] (service %q): %w", i, c.Service, err)
+		}
+		if c.ApiKey != nil {
+			for j, inj := range c.ApiKey.Inject {
+				if inj.Domain != "" && !allowListCovers(inj.Domain, allowedDomains) {
+					a.Warnings = append(a.Warnings, fmt.Sprintf(
+						"credentials[%d] (service %q): apiKey.inject[%d].domain %q is not covered by permissions.network.allow",
+						i, c.Service, j, inj.Domain))
+				}
+			}
 		}
 	}
 
@@ -512,6 +529,49 @@ func compileArgPattern(pat string) (*regexp.Regexp, error) {
 		return nil, err
 	}
 	return regexp.Compile(`\A(?:` + pat + `)\z`)
+}
+
+// ValidateApiKey requires inject[].domain and header or username on every
+// entry (SPEC-v2 §5.4.1); name itself is required only for schemaVersion "2".
+func ValidateApiKey(a *ApiKey, schemaVersion string) error {
+	if a == nil {
+		return nil
+	}
+	if a.Name == "" && schemaVersion == "2" {
+		return fmt.Errorf("apiKey: name is required")
+	}
+	for j, inj := range a.Inject {
+		if inj.Domain == "" {
+			return fmt.Errorf("apiKey: inject[%d].domain is required", j)
+		}
+		if inj.Format != "" && strings.Count(inj.Format, "%s") != 1 {
+			return fmt.Errorf("apiKey: inject[%d].format must contain exactly one %%s placeholder (got %q)", j, inj.Format)
+		}
+		if inj.Header == "" && inj.Username == "" {
+			return fmt.Errorf("apiKey: inject[%d] sets neither header nor username, so it injects nothing", j)
+		}
+	}
+	return nil
+}
+
+// allowListCovers matches domain against the exact, host:port, *., and **.
+// forms permissions.network.allow documents — no other pattern semantics.
+func allowListCovers(domain string, allow []string) bool {
+	for _, entry := range allow {
+		host, _, _ := strings.Cut(entry, ":")
+		if host == domain {
+			return true
+		}
+		if label, ok := strings.CutPrefix(host, "**."); ok && strings.HasSuffix(domain, "."+label) {
+			return true
+		}
+		if label, ok := strings.CutPrefix(host, "*."); ok {
+			if sub := strings.TrimSuffix(domain, "."+label); sub != domain && sub != "" && !strings.Contains(sub, ".") {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // ValidateOAuthPolicy validates the oauth policy if present.

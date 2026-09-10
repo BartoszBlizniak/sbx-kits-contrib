@@ -630,6 +630,9 @@ credentials:
 | `inject[].username` | string | HTTP Basic username (proxy uses it as the username, the credential as the password). |
 | `inject[].scheme` | string | Decode-time sugar (see below). Mutually exclusive with `format`. Always empty on the normalized artifact. |
 
+An inject entry MUST set at least one of `header` or `username`; one with
+neither has nothing for the proxy to inject and is invalid.
+
 **`scheme` sugar:**
 
 | `scheme` | Expands to | Constraints |
@@ -823,6 +826,16 @@ the per-field rules above:
   derives service keys from env-var names and keeps underscores
   (`SAMPLE_PROXY_TOKEN` → `sample_proxy`), so enforcing it would reject v1
   kits that load today.
+- **credentials[].apiKey** (when present): `name` non-empty on a
+  `schemaVersion "2"` spec — the v1 `network.serviceDomains` +
+  `network.serviceAuth` fold can legitimately produce a header-only inject
+  with no name, so that shape stays accepted on the `schemaVersion "1"` path;
+  each `inject[].domain` non-empty; `inject[].format`, when set, contains
+  exactly one `%s`; each inject entry sets at least one of `header` or
+  `username` (one with neither injects nothing). Separately, `ValidateArtifact`
+  emits a non-fatal warning — it does not reject the kit — when an inject
+  domain is absent from `permissions.network.allow`; the engine still
+  performs the authoritative enforcement at load or sandbox-create time.
 - **credentials[].oauth** (when present): `tokenEndpoint.host` and
   `tokenEndpoint.path` non-empty; `sentinels.accessToken` and
   `sentinels.refreshToken` non-empty **unless** `passthrough: true`;
@@ -845,9 +858,12 @@ the per-field rules above:
 - **files/**: target `home` or `workspace`; relative, non-escaping paths.
 
 Rules stated as **MUST** in this document that are enforced by the engine rather
-than by `ValidateArtifact` (e.g. inject-domain ⊆ `permissions.network.allow`,
-reserved env prefixes, `sandbox.build` requiring `image`) surface at load or
-sandbox-create time.
+than by `ValidateArtifact` (e.g. reserved env prefixes, `sandbox.build`
+requiring `image`) surface at load or sandbox-create time. inject-domain ⊆
+`permissions.network.allow` is the partial exception: `ValidateArtifact` warns
+when it detects an uncovered domain, but the engine still performs the
+authoritative enforcement at load or sandbox-create time — the warning does
+not reject the kit.
 
 Validation **never** errors on legacy v1 fields — that is the normalize layer's
 job, and it only runs on the `schemaVersion: "1"` path.

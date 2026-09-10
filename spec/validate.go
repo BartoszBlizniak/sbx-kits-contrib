@@ -346,9 +346,13 @@ func ValidateArtifact(a *Artifact) error {
 		if c.ApiKey != nil {
 			for j, inj := range c.ApiKey.Inject {
 				if inj.Domain != "" && !allowListCovers(inj.Domain, allowedDomains) {
-					a.Warnings = append(a.Warnings, fmt.Sprintf(
+					msg := fmt.Sprintf(
 						"credentials[%d] (service %q): apiKey.inject[%d].domain %q is not covered by permissions.network.allow",
-						i, c.Service, j, inj.Domain))
+						i, c.Service, j, inj.Domain)
+					// A caller may revalidate the same artifact; don't re-append.
+					if !slices.Contains(a.Warnings, msg) {
+						a.Warnings = append(a.Warnings, msg)
+					}
 				}
 			}
 		}

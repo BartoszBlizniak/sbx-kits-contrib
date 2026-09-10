@@ -1,6 +1,7 @@
 package spec
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -847,6 +848,31 @@ func TestValidateArtifact(t *testing.T) {
 		require.NoError(t, ValidateArtifact(a), "an uncovered inject domain must warn, not fail validation")
 		require.True(t, hasWarningContaining(a.Warnings, `apiKey.inject[0].domain "svc.example.com" is not covered`),
 			"expected an uncovered-domain warning, got %v", a.Warnings)
+	})
+
+	// A caller may revalidate the same artifact (e.g. after a streaming
+	// re-check); the warning must not accumulate a duplicate per call.
+	t.Run("apikey_inject_domain_warning_is_idempotent_across_revalidation", func(t *testing.T) {
+		a := &Artifact{
+			Manifest: Manifest{SchemaVersion: "2", Kind: KindMixin, Name: "ok"},
+			Caps:     &Caps{Network: &CapsNetwork{Allow: []string{"other.example.com"}}},
+			Credentials: []Credential{{
+				Service: "svc",
+				ApiKey: &ApiKey{
+					Name:   "SVC_TOKEN",
+					Inject: []ApiKeyInject{{Domain: "svc.example.com", Header: "x-api-key", Format: "%s"}},
+				},
+			}},
+		}
+		require.NoError(t, ValidateArtifact(a))
+		require.NoError(t, ValidateArtifact(a))
+		count := 0
+		for _, w := range a.Warnings {
+			if strings.Contains(w, `apiKey.inject[0].domain "svc.example.com" is not covered`) {
+				count++
+			}
+		}
+		require.Equal(t, 1, count, "revalidation must not duplicate the warning, got %v", a.Warnings)
 	})
 
 	t.Run("apikey_inject_domain_covered_by_wildcard_no_warning", func(t *testing.T) {

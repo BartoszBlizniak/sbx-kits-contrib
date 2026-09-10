@@ -76,9 +76,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends xvfb && \
 
 # Startup commands run with a minimal PATH that may not include the npm
 # global bin dir — pin the binary somewhere always on PATH.
-# The invocation is the assertion: it goes through the same shebang
-# resolution a sandbox will, so a PATH that reaches the wrong interpreter
-# fails the build here rather than every sandbox built from it.
+# The invocation is an assertion, with a known limit: it resolves the shebang
+# against the image's own ENV PATH, so it catches an image whose interpreter is
+# wrong for the installed openclaw. It cannot vouch for a PATH assembled later
+# -- the startup scripts export their own -- so those set /usr/local/bin first
+# themselves rather than relying on this.
 RUN ln -sf "$(npm prefix -g)/bin/openclaw" /usr/local/bin/openclaw && \
     openclaw --version
 

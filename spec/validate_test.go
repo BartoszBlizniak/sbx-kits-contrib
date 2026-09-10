@@ -865,6 +865,56 @@ func TestValidateArtifact(t *testing.T) {
 		require.Empty(t, a.Warnings)
 	})
 
+	// A port range never matches a request, so it doesn't cover the domain.
+	t.Run("apikey_inject_domain_port_range_allow_still_warns", func(t *testing.T) {
+		a := &Artifact{
+			Manifest: Manifest{SchemaVersion: "2", Kind: KindMixin, Name: "ok"},
+			Caps:     &Caps{Network: &CapsNetwork{Allow: []string{"api.example.com:80-443"}}},
+			Credentials: []Credential{{
+				Service: "svc",
+				ApiKey: &ApiKey{
+					Name:   "SVC_TOKEN",
+					Inject: []ApiKeyInject{{Domain: "api.example.com", Header: "x-api-key", Format: "%s"}},
+				},
+			}},
+		}
+		require.NoError(t, ValidateArtifact(a))
+		require.True(t, hasWarningContaining(a.Warnings, `apiKey.inject[0].domain "api.example.com" is not covered`),
+			"a port-range allow entry never matches, so it must still warn; got %v", a.Warnings)
+	})
+
+	t.Run("apikey_inject_domain_port_wildcard_allow_no_warning", func(t *testing.T) {
+		a := &Artifact{
+			Manifest: Manifest{SchemaVersion: "2", Kind: KindMixin, Name: "ok"},
+			Caps:     &Caps{Network: &CapsNetwork{Allow: []string{"api.example.com:*"}}},
+			Credentials: []Credential{{
+				Service: "svc",
+				ApiKey: &ApiKey{
+					Name:   "SVC_TOKEN",
+					Inject: []ApiKeyInject{{Domain: "api.example.com", Header: "x-api-key", Format: "%s"}},
+				},
+			}},
+		}
+		require.NoError(t, ValidateArtifact(a))
+		require.Empty(t, a.Warnings)
+	})
+
+	t.Run("apikey_inject_domain_multilabel_wildcard_allow_no_warning", func(t *testing.T) {
+		a := &Artifact{
+			Manifest: Manifest{SchemaVersion: "2", Kind: KindMixin, Name: "ok"},
+			Caps:     &Caps{Network: &CapsNetwork{Allow: []string{"**.example.com"}}},
+			Credentials: []Credential{{
+				Service: "svc",
+				ApiKey: &ApiKey{
+					Name:   "SVC_TOKEN",
+					Inject: []ApiKeyInject{{Domain: "a.b.example.com", Header: "x-api-key", Format: "%s"}},
+				},
+			}},
+		}
+		require.NoError(t, ValidateArtifact(a))
+		require.Empty(t, a.Warnings)
+	})
+
 	// scheme: basic expands to Username set, Header empty (SPEC-v2 §5.4.1);
 	// this shape must validate clean despite the empty header.
 	t.Run("scheme_basic_post_fold_shape_is_clean", func(t *testing.T) {

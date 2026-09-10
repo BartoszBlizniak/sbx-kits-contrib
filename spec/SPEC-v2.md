@@ -68,7 +68,7 @@ a load-time warning where noted:
 | `sandbox.build` | Accepted; the runtime does **not** build images this release. A kit using `build:` **MUST** also set `sandbox.image`. |
 | `mixins:` | Accepted; mixin composition is **not** applied by the runtime this release. |
 | `sandbox.resources` | Accepted; enforcement is best-effort / pending. |
-| `permissions.network` extended patterns | `**.` wildcards, CIDR, and port ranges are declared but **not** enforced this release (see [§5.2](#52-permissionsnetwork)). |
+| `permissions.network` extended patterns | CIDR and port ranges are declared but **not** enforced this release; `**.` wildcards and `:*` port wildcards are enforced (see [§5.2](#52-permissionsnetwork)). |
 
 ---
 
@@ -552,9 +552,9 @@ Entry formats:
 | exact host | `api.example.com` (default port 443) | **Enforced** |
 | exact host + port | `api.example.com:8080` | **Enforced** |
 | single-label wildcard | `*.example.com` (exactly one label; not `example.com`, not `a.b.example.com`) | **Enforced** |
-| multi-label wildcard | `**.example.com` | Declared; **not enforced** this release |
-| port range | `api.example.com:80-443` | Declared; **not enforced** this release |
-| port wildcard | `api.example.com:*` | Declared; **not enforced** this release |
+| multi-label wildcard | `**.example.com` | **Enforced** — matches one or more labels |
+| port range | `api.example.com:80-443` | Declared; **not enforced** this release — never matches a request |
+| port wildcard | `api.example.com:*` | **Enforced** — identical to omitting the port |
 | CIDR | `10.0.0.0/8` | Declared; **not enforced** this release |
 
 Rules:

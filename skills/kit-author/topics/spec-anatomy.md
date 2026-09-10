@@ -322,9 +322,9 @@ Entry formats:
 | `<domain>` | `api.example.com` | Exact host, default port 443 | **P2 — implemented** |
 | `<domain>:<port>` | `api.example.com:8080` | Exact host, specific port | **P2 — implemented** |
 | `*.<domain>` | `*.example.com` | Exactly one DNS label (e.g. `api.example.com`, `cdn.example.com`). Does **not** match `example.com` itself or `a.b.example.com`. | **P2 — implemented** |
-| `**.<domain>` | `**.example.com` | One or more DNS labels (e.g. `api.example.com`, `a.b.example.com`). | **P3 — pending** |
-| `<domain>:<lo>-<hi>` | `api.example.com:80-443` | Port range | **P3 — pending** |
-| `<domain>:*` | `api.example.com:*` | Port wildcard | **P3 — pending** |
+| `**.<domain>` | `**.example.com` | One or more DNS labels (e.g. `api.example.com`, `a.b.example.com`). | **Enforced** |
+| `<domain>:<lo>-<hi>` | `api.example.com:80-443` | Port range | **P3 — pending**; never matches a request |
+| `<domain>:*` | `api.example.com:*` | Port wildcard | **Enforced** — identical to omitting the port |
 | CIDR | `10.0.0.0/8` | IP block | **P3 — pending** |
 
 **Deny precedence.** When the same host matches both `allow` and `deny`, **deny wins** — the request is rejected. Overlap is legal (and intentional: a parent kit can allow `*.example.com` while a child or mixin denies `telemetry.example.com`).

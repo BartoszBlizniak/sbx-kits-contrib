@@ -6,6 +6,7 @@ import (
 	"path"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/docker/go-units"
@@ -557,11 +558,14 @@ func ValidateApiKey(a *ApiKey, schemaVersion string) error {
 	return nil
 }
 
-// allowListCovers matches domain against the exact, host:port, *., and **.
-// forms permissions.network.allow documents — no other pattern semantics.
+// allowListCovers mirrors sbx's runtime enforcement: a port range or other
+// non-numeric, non-"*" port never matches, so it doesn't count as coverage.
 func allowListCovers(domain string, allow []string) bool {
 	for _, entry := range allow {
-		host, _, _ := strings.Cut(entry, ":")
+		host, port, hasPort := strings.Cut(entry, ":")
+		if hasPort && port != "*" && !isNumericPort(port) {
+			continue
+		}
 		if host == domain {
 			return true
 		}
@@ -575,6 +579,12 @@ func allowListCovers(domain string, allow []string) bool {
 		}
 	}
 	return false
+}
+
+// isNumericPort reports whether s is a valid 0-65535 decimal port.
+func isNumericPort(s string) bool {
+	_, err := strconv.ParseUint(s, 10, 16)
+	return err == nil
 }
 
 // ValidateOAuthPolicy validates the oauth policy if present.

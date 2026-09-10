@@ -460,8 +460,8 @@ type Caps struct {
 //   - exact:port:            api.example.com:443
 //   - single-label wildcard: *.example.com
 //
-// P3 entry formats (deferred): double wildcards (**.example.com), CIDR
-// (10.0.0.0/8), port ranges (api.example.com:8000-9000).
+// P3-labeled but enforced: double wildcards (**.example.com), port wildcard
+// (host:*). Still not enforced: CIDR (10.0.0.0/8), port ranges (host:8000-9000).
 type CapsNetwork struct {
 	Allow []string `json:"allow,omitempty" yaml:"allow,omitempty"`
 	Deny  []string `json:"deny,omitempty" yaml:"deny,omitempty"`

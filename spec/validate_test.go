@@ -580,6 +580,13 @@ func TestValidateApiKey(t *testing.T) {
 		a := &ApiKey{Name: "TOKEN", Inject: []ApiKeyInject{{Domain: "d.example.com", Username: "x-access-token", Format: "%s"}}}
 		require.NoError(t, ValidateApiKey(a, "2"))
 	})
+
+	// HTTP Basic (RFC 7617) parses everything after the first colon as the
+	// password, so a colon-bearing username can never authenticate as declared.
+	t.Run("username_with_colon_rejected", func(t *testing.T) {
+		a := &ApiKey{Name: "TOKEN", Inject: []ApiKeyInject{{Domain: "d.example.com", Username: "a:b", Format: "%s"}}}
+		require.ErrorContains(t, ValidateApiKey(a, "2"), `username must not contain ":"`)
+	})
 }
 
 func TestValidateOAuth(t *testing.T) {

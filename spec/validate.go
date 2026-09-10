@@ -550,6 +550,9 @@ func ValidateApiKey(a *ApiKey, schemaVersion string) error {
 		if inj.Header == "" && inj.Username == "" {
 			return fmt.Errorf("apiKey: inject[%d] sets neither header nor username, so it injects nothing", j)
 		}
+		if strings.Contains(inj.Username, ":") {
+			return fmt.Errorf("apiKey: inject[%d].username must not contain \":\" (HTTP Basic treats the first colon as the user/password delimiter)", j)
+		}
 	}
 	return nil
 }

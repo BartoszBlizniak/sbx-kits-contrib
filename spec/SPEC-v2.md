@@ -627,7 +627,7 @@ credentials:
 | `inject[].domain` | string | REQUIRED. MUST appear in `permissions.network.allow`. |
 | `inject[].header` | string | The HTTP header to set. |
 | `inject[].format` | string | Header value format; MUST contain exactly one `%s`. Mutually exclusive with `scheme`. |
-| `inject[].username` | string | HTTP Basic username (proxy uses it as the username, the credential as the password). |
+| `inject[].username` | string | HTTP Basic username (proxy uses it as the username, the credential as the password). MUST NOT contain `:` — HTTP Basic (RFC 7617) treats the first colon as the user/password delimiter. |
 | `inject[].scheme` | string | Decode-time sugar (see below). Mutually exclusive with `format`. Always empty on the normalized artifact. |
 
 An inject entry MUST set at least one of `header` or `username`; one with
@@ -832,7 +832,8 @@ the per-field rules above:
   with no name, so that shape stays accepted on the `schemaVersion "1"` path;
   each `inject[].domain` non-empty; `inject[].format`, when set, contains
   exactly one `%s`; each inject entry sets at least one of `header` or
-  `username` (one with neither injects nothing). Separately, `ValidateArtifact`
+  `username` (one with neither injects nothing); `username`, when set, does
+  not contain `:` (HTTP Basic's user/password delimiter). Separately, `ValidateArtifact`
   emits a non-fatal warning — it does not reject the kit — when an inject
   domain is absent from `permissions.network.allow`; the engine still
   performs the authoritative enforcement at load or sandbox-create time.

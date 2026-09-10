@@ -10,6 +10,8 @@ Compose it with `cloudsmith-repo`:
 sbx run claude --kit "docker.io/sbx/cloudsmith-repo-kit:latest" --kit "docker.io/sbx/cloudsmith-dependency-firewall-kit:latest" --kit-arg cloudsmith-repo.path=/acme/prod .
 ```
 
+The Git examples require `github.com/docker/` in Docker's `kit.allowedSources` setting. Preserve any existing allowed sources when adding it; see [Restrict kit sources](https://docs.docker.com/ai/sandboxes/customize/kits/#restrict-kit-sources).
+
 Or from git or a local clone:
 
 ```console
@@ -28,25 +30,43 @@ On the host, `sbx policy log <sandbox>` shows `pypi.org` as `denied: rule "kit:<
 
 ## How it works
 
+This kit takes no arguments and carries no credentials. Configure the repository and its authentication through `cloudsmith-repo` using the [usage examples](#usage). The flow below shows the named registry hosts this kit denies and the Cloudsmith hosts allowed by the composed policy; other hosts remain subject to that policy.
+
 ```mermaid
 flowchart TB
-    subgraph sandbox["Sandbox"]
-        direction TB
-        kit["cloudsmith-dependency-firewall kit"]
-        args["args: none"]
-        auth["auth: none"]
-        s1["Adds deny rules for the public registries:<br/>PyPI, npmjs, Go mirror, crates.io,<br/>Maven Central, nuget.org, Docker Hub"]
-        s2["Sandbox proxy: a deny rule wins<br/>over any allow from other kits"]
-        s3["A tool falling back to a public registry<br/>is blocked, visible in sbx policy log"]
-        s4["Pulls through the Cloudsmith repository<br/>(cloudsmith-repo kit) keep working"]
-        kit --> s1 --> s2 --> s3 --> s4
-        kit ~~~ args
-        kit ~~~ auth
+    subgraph SETUP["SETUP · Sandbox creation"]
+        direction LR
+        COMPOSE("Compose kits<br/>Repository + firewall")
+        RULES("Add registry deny rules")
+        POLICY(["Policy active<br/>Deny overrides allow"])
+        COMPOSE --> RULES --> POLICY
     end
-    style sandbox stroke:#e03131,stroke-width:2px,fill:#ffffff
-    style kit stroke:#e03131,stroke-width:2px,fill:#ffffff
-    style args stroke:#1971c2,stroke-width:2px,fill:#ffffff
-    style auth stroke:#2f9e44,stroke-width:2px,fill:#ffffff
+
+    subgraph REQUEST["RUNTIME · Package request"]
+        direction LR
+        CLIENT("Package client")
+        PROXY{"Sandbox proxy<br/>Destination host?"}
+        CLOUDSMITH(["Cloudsmith<br/>Repository policy applies"])
+        BLOCK("403 · Blocked<br/>Record in policy log")
+        REPORT("Report failure<br/>Keep registry settings")
+        CLIENT --> PROXY
+        PROXY -->|Allowed| CLOUDSMITH
+        PROXY -->|Denied registry| BLOCK
+        BLOCK --> REPORT
+    end
+
+    SETUP --> REQUEST
+
+    classDef neutral fill:#f8fafc,stroke:#94a3b8,color:#0f172a;
+    classDef accent fill:#faf5ff,stroke:#a855f7,color:#581c87,stroke-width:2px;
+    classDef success fill:#ecfdf5,stroke:#34d399,color:#065f46;
+    classDef failure fill:#fff7ed,stroke:#fb923c,color:#9a3412;
+    class COMPOSE,CLIENT neutral;
+    class RULES,POLICY,PROXY accent;
+    class CLOUDSMITH success;
+    class BLOCK,REPORT failure;
+    style SETUP fill:transparent,stroke:#94a3b8,stroke-dasharray:4 4
+    style REQUEST fill:transparent,stroke:#94a3b8,stroke-dasharray:4 4
 ```
 
 - **Deny wins.** `permissions.network.deny` beats any `allow` from the base agent or another kit, and lists only append across kits. A stale lockfile, a project `.npmrc` or a `--index-url` flag hits a policy block instead of a public registry.

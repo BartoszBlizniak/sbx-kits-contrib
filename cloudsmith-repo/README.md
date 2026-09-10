@@ -1,6 +1,6 @@
 # cloudsmith-repo
 
-Points the sandbox's package managers at one [Cloudsmith](https://cloudsmith.com) repository. pip/uv, npm/pnpm/yarn, Go, cargo, Maven, NuGet, Docker and raw downloads all pull through it. The repository's vulnerability, license and deny policies decide what the agent gets. The read-only [entitlement token](https://docs.cloudsmith.com/software-distribution/entitlement-tokens) stays on the host and the sandbox proxy adds it to each request. Works with any base agent.
+Points the sandbox's package managers at one [Cloudsmith](https://cloudsmith.com) repository. pip/uv, npm/pnpm/yarn, Go, cargo, Maven, NuGet, Docker and raw downloads all pull through it. The repository's vulnerability, license and deny policies decide what the agent gets. The sandbox proxy authenticates requests using a read-only [entitlement token](https://docs.cloudsmith.com/software-distribution/entitlement-tokens) stored on the host. Works with any base agent.
 
 Companions: [`cloudsmith-cli`](https://github.com/docker/sbx-kits-contrib/tree/main/cloudsmith-cli) (the `cloudsmith` command and an API key), [`cloudsmith-dependency-firewall`](https://github.com/docker/sbx-kits-contrib/tree/main/cloudsmith-dependency-firewall) (deny the public registries).
 
@@ -9,7 +9,7 @@ Companions: [`cloudsmith-cli`](https://github.com/docker/sbx-kits-contrib/tree/m
 Store the repository's entitlement token once (skip for a public repository):
 
 ```console
-sbx secret set cloudsmith-entitlement-token -t <token>
+sbx secret set cloudsmith-entitlement-token
 ```
 
 Create a sandbox pointed at the repository:
@@ -18,6 +18,8 @@ Create a sandbox pointed at the repository:
 sbx run claude --kit "docker.io/sbx/cloudsmith-repo-kit:latest" --kit-arg cloudsmith-repo.path=/acme/prod .
 ```
 
+The Git examples require `github.com/docker/` in Docker's `kit.allowedSources` setting. Preserve any existing allowed sources when adding it; see [Restrict kit sources](https://docs.docker.com/ai/sandboxes/customize/kits/#restrict-kit-sources).
+
 Or from git or a local clone:
 
 ```console
@@ -25,12 +27,12 @@ sbx run --kit "git+https://github.com/docker/sbx-kits-contrib.git#dir=cloudsmith
 sbx run claude --kit ./cloudsmith-repo/ --kit-arg cloudsmith-repo.path=/acme/prod .
 ```
 
-On the first create, sbx asks `[A]pprove all · [R]eview each · [N]o` for the hosts the token may be sent to. Answer `A`. Without a terminal there is no prompt: the credential is not sent and the install probe fails with 401.
+On first use, approve the configured Cloudsmith hosts in the credential-binding prompt. For unattended runs, create the binding beforehand by running interactively once or configuring [credential bindings](https://docs.docker.com/ai/sandboxes/configuration/credentials/#credential-bindings). Without an approved binding, the token is withheld and private repository access fails.
 
 Prerequisites:
 
 - The repository has [upstreams](https://docs.cloudsmith.com/repositories/upstreams) for the formats in use. Without them it serves only what was pushed.
-- Compose at create time with `--kit`. `sbx kit add` does not write the agent note.
+- Apply this kit when creating a sandbox with `--kit`. Recreate an existing sandbox to add it.
 - The base image has `npm` (all standard templates do). `~/.cargo/config.toml`, `~/.m2/settings.xml` and `~/.nuget/NuGet/NuGet.Config` are overwritten on every start.
 - Tested with sbx 0.42.x.
 
@@ -88,30 +90,53 @@ Per-format notes:
 
 Not covered: RubyGems, Conda, Composer, Hex, Dart, Swift, Conan, Terraform, apt, rpm. Same auth model, client setup not verified.
 
+## Authentication
+
+Private repositories use the `cloudsmith-entitlement-token` stored in the [usage steps](#usage); public repositories need no token. The sandbox proxy adds `Authorization: Bearer <token>` to requests to the configured Cloudsmith hosts. Inside the sandbox, `CLOUDSMITH_ENTITLEMENT_TOKEN` holds `proxy-managed`, and Cargo uses a placeholder token.
+
+Use a read-only token scoped to the repository. See [Security](#security) for the raw-download redirect limitation and token rotation guidance.
+
 ## How it works
 
 ```mermaid
 flowchart TB
-    subgraph sandbox["Sandbox"]
-        direction TB
-        kit["cloudsmith-repo kit"]
-        args["args: repository path,<br/>one host per format (custom domains)"]
-        auth["auth: entitlement token, read-only<br/>added by the sandbox proxy, never inside"]
-        s1["Points pip, npm, go, cargo, mvn,<br/>dotnet, docker at the repository<br/>(env vars + config files)"]
-        s2["Probe: is the repository reachable?<br/>no ⇒ sandbox creation stops with a reason"]
-        s3["Every download goes through the proxy<br/>to the Cloudsmith repository"]
-        s4["Repository policies apply<br/>quarantined version ⇒ 403, reported by the agent"]
-        kit --> s1 --> s2 --> s3 --> s4
-        kit ~~~ args
-        kit ~~~ auth
+    subgraph SETUP["SETUP · Sandbox creation"]
+        direction LR
+        CONFIG("Configure clients<br/>Repository URLs")
+        CHECK("Check access<br/>Python index · HEAD")
+        READY(["Agent ready"])
+        CONFIG --> CHECK
+        CHECK -->|200| READY
     end
-    style sandbox stroke:#e03131,stroke-width:2px,fill:#ffffff
-    style kit stroke:#e03131,stroke-width:2px,fill:#ffffff
-    style args stroke:#1971c2,stroke-width:2px,fill:#ffffff
-    style auth stroke:#2f9e44,stroke-width:2px,fill:#ffffff
+
+    subgraph REQUEST["RUNTIME · Package download"]
+        direction LR
+        CLIENT("Package client")
+        PROXY("Sandbox proxy<br/>Policy + credentials")
+        REPO("Cloudsmith<br/>Repository + upstreams")
+        DONE(["Package received"])
+        REPORT("Report failure<br/>Keep registry settings")
+        CLIENT --> PROXY
+        PROXY -->|Allowed| REPO
+        REPO -->|Success| DONE
+        PROXY -->|Denied| REPORT
+        REPO -->|401 / 403 / 404| REPORT
+    end
+
+    SETUP --> REQUEST
+
+    classDef neutral fill:#f8fafc,stroke:#94a3b8,color:#0f172a;
+    classDef accent fill:#eff6ff,stroke:#3b82f6,color:#1e3a8a,stroke-width:2px;
+    classDef success fill:#ecfdf5,stroke:#34d399,color:#065f46;
+    classDef failure fill:#fff7ed,stroke:#fb923c,color:#9a3412;
+    class CONFIG,CLIENT neutral;
+    class CHECK,PROXY,REPO accent;
+    class READY,DONE success;
+    class REPORT failure;
+    style SETUP fill:transparent,stroke:#94a3b8,stroke-dasharray:4 4
+    style REQUEST fill:transparent,stroke:#94a3b8,stroke-dasharray:4 4
 ```
 
-- **Auth at the proxy.** With the secret bound, the proxy adds `Authorization: Bearer <token>` to every request to the six hosts. That includes anonymous requests, and it overwrites any header the client sent. Inside the sandbox the variable holds `proxy-managed`.
 - **Probe.** The first install step sends `HEAD` to the Python index through the proxy. Anything but 200 stops creation: 401 (no token reached Cloudsmith), 403 (token rejected, or host denied by policy), 404 (wrong `path` for the domain level). It checks the download host only.
 - **Policy.** A version blocked by a [vulnerability](https://docs.cloudsmith.com/policy-management/vulnerability-policy), license or deny policy returns 403. Scanning is asynchronous and the CDN can serve a stale answer for about five minutes after a quarantine.
 - **Agent note** (`kits-agent-context/cloudsmith-repo.md`): report 401/403/404 with package, version, host and status; never switch a tool to a public registry.

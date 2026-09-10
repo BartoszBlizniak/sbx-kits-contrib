@@ -7,7 +7,7 @@ Installs the [`cloudsmith` CLI](https://github.com/cloudsmith-io/cloudsmith-cli)
 Store the API key once (optional; without it the CLI installs and `cloudsmith whoami` reports no user):
 
 ```console
-sbx secret set cloudsmith-api-key -t <api-key>
+sbx secret set cloudsmith-api-key
 ```
 
 Create a sandbox, usually with the pull kit:
@@ -15,6 +15,8 @@ Create a sandbox, usually with the pull kit:
 ```console
 sbx run claude --kit "docker.io/sbx/cloudsmith-repo-kit:latest" --kit "docker.io/sbx/cloudsmith-cli-kit:latest" --kit-arg cloudsmith-repo.path=/acme/prod .
 ```
+
+The Git examples require `github.com/docker/` in Docker's `kit.allowedSources` setting. Preserve any existing allowed sources when adding it; see [Restrict kit sources](https://docs.docker.com/ai/sandboxes/customize/kits/#restrict-kit-sources).
 
 Or from git or a local clone:
 
@@ -39,32 +41,48 @@ cloudsmith list packages ORG/REPO
 | --- | --- | --- |
 | `cli-version` | `1.27.0` | A release number, or `latest` |
 
+## Authentication
+
+On first use, approve `api.cloudsmith.io` in the credential-binding prompt. For unattended runs, create the binding beforehand by running interactively once or configuring [credential bindings](https://docs.docker.com/ai/sandboxes/configuration/credentials/#credential-bindings). Without an approved binding, the API key is withheld.
+
+The optional `cloudsmith-api-key` is stored on the host as shown in [Usage](#usage). The proxy adds `X-Api-Key: <key>` to requests to `api.cloudsmith.io`, from the CLI or any other process. Inside the sandbox, `CLOUDSMITH_API_KEY` holds `proxy-managed`.
+
+Bind a least-privilege service-account key: every process in the sandbox can exercise its permissions. Without a key, the CLI still installs, but authenticated API operations are unavailable. API access is separate from the repository entitlement token used by `cloudsmith-repo`.
+
 ## How it works
 
 ```mermaid
 flowchart TB
-    subgraph sandbox["Sandbox"]
-        direction TB
-        kit["cloudsmith-cli kit"]
-        args["args: cli-version<br/>(pinned default, or latest)"]
-        auth["auth: API key<br/>added by the sandbox proxy on api.cloudsmith.io"]
-        s1["Downloads the pinned installer script<br/>and checks its SHA256"]
-        s2["Installer fetches the release manifest<br/>for the requested version"]
-        s3["Verifies the archive against the manifest<br/>and installs the CLI"]
-        s4["cloudsmith CLI ready<br/>cloudsmith whoami works, no key in the sandbox"]
-        kit --> s1 --> s2 --> s3 --> s4
-        kit ~~~ args
-        kit ~~~ auth
+    subgraph SETUP["SETUP · Sandbox creation"]
+        direction LR
+        FETCH("Download installer<br/>Verify SHA256")
+        INSTALL("Install CLI<br/>Verify release archive")
+        READY(["CLI ready<br/>cloudsmith --version"])
+        FETCH --> INSTALL --> READY
     end
-    style sandbox stroke:#e03131,stroke-width:2px,fill:#ffffff
-    style kit stroke:#e03131,stroke-width:2px,fill:#ffffff
-    style args stroke:#1971c2,stroke-width:2px,fill:#ffffff
-    style auth stroke:#2f9e44,stroke-width:2px,fill:#ffffff
+
+    subgraph REQUEST["RUNTIME · API command"]
+        direction LR
+        CLI("cloudsmith command")
+        PROXY("Sandbox proxy<br/>Inject bound API key")
+        API("Cloudsmith API<br/>Apply key permissions")
+        RESULT(["API response"])
+        CLI --> PROXY --> API --> RESULT
+    end
+
+    SETUP --> REQUEST
+
+    classDef neutral fill:#f8fafc,stroke:#94a3b8,color:#0f172a;
+    classDef accent fill:#ecfdf5,stroke:#10b981,color:#065f46,stroke-width:2px;
+    classDef success fill:#ecfdf5,stroke:#34d399,color:#065f46;
+    class FETCH,CLI neutral;
+    class INSTALL,PROXY,API accent;
+    class READY,RESULT success;
+    style SETUP fill:transparent,stroke:#94a3b8,stroke-dasharray:4 4
+    style REQUEST fill:transparent,stroke:#94a3b8,stroke-dasharray:4 4
 ```
 
 - **Install.** The kit downloads Cloudsmith's [installer script](https://github.com/cloudsmith-io/cloudsmith-cli-install-script) (version and SHA256 pinned in the spec) to a file and checks the digest. The script fetches the release manifest for `cli-version` from the public `cloudsmith/cli` repository, verifies the archive against it, and installs under `/opt/cloudsmith-cli`. The kit symlinks `/usr/local/bin/cloudsmith`. Nothing is piped into `sh`, nothing comes from PyPI.
-- **Auth.** The proxy adds `X-Api-Key: <key>` to every request to `api.cloudsmith.io`, from the CLI or any other process. Inside the sandbox `CLOUDSMITH_API_KEY` holds `proxy-managed`.
-- **Authority.** Whatever the key may do (publish, delete, change policies), the sandbox may do. Bind a least-privilege service-account key. This is why the kit is separate: `cloudsmith-repo` alone has no API host and no API credential.
 - **Bumping.** Installer: change `INSTALLER_VERSION` and `INSTALLER_SHA256` from its `SHA256SUMS`. CLI: change the `cli-version` default.
 
 ### Why these domains

@@ -735,9 +735,8 @@ type Artifact struct {
 	// warning.
 	AgentContext string `json:"agentContext,omitempty"`
 
-	// Warnings is the list of non-fatal validation issues collected during
-	// load (typically v1 → v2 deprecation warnings). Empty slice when the
-	// spec uses only canonical v2 fields.
+	// Warnings lists non-fatal issues from load and validation — v1 → v2
+	// deprecations plus validator findings (e.g. an uncovered credential domain).
 	Warnings []string `json:"warnings,omitempty"`
 }
 

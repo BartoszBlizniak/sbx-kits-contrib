@@ -846,12 +846,12 @@ func TestValidateArtifact(t *testing.T) {
 			}},
 		}
 		require.NoError(t, ValidateArtifact(a), "an uncovered inject domain must warn, not fail validation")
-		require.True(t, hasWarningContaining(a.Warnings, `apiKey.inject[0].domain "svc.example.com" is not covered`),
+		require.True(t, hasWarningContaining(a.Warnings, `credentials[0] (service "svc") inject[0].domain "svc.example.com"`),
 			"expected an uncovered-domain warning, got %v", a.Warnings)
 	})
 
-	// A caller may revalidate the same artifact (e.g. after a streaming
-	// re-check); the warning must not accumulate a duplicate per call.
+	// Coverage warnings are validator-owned: revalidating the same artifact
+	// must not accumulate a duplicate per call.
 	t.Run("apikey_inject_domain_warning_is_idempotent_across_revalidation", func(t *testing.T) {
 		a := &Artifact{
 			Manifest: Manifest{SchemaVersion: "2", Kind: KindMixin, Name: "ok"},
@@ -868,11 +868,33 @@ func TestValidateArtifact(t *testing.T) {
 		require.NoError(t, ValidateArtifact(a))
 		count := 0
 		for _, w := range a.Warnings {
-			if strings.Contains(w, `apiKey.inject[0].domain "svc.example.com" is not covered`) {
+			if strings.Contains(w, `credentials[0] (service "svc") inject[0].domain "svc.example.com"`) {
 				count++
 			}
 		}
 		require.Equal(t, 1, count, "revalidation must not duplicate the warning, got %v", a.Warnings)
+	})
+
+	// Coverage warnings are also self-healing: once the allow list is fixed,
+	// revalidating the same artifact must drop the now-stale warning.
+	t.Run("apikey_inject_domain_warning_clears_once_allow_list_fixed", func(t *testing.T) {
+		a := &Artifact{
+			Manifest: Manifest{SchemaVersion: "2", Kind: KindMixin, Name: "ok"},
+			Caps:     &Caps{Network: &CapsNetwork{Allow: []string{"other.example.com"}}},
+			Credentials: []Credential{{
+				Service: "svc",
+				ApiKey: &ApiKey{
+					Name:   "SVC_TOKEN",
+					Inject: []ApiKeyInject{{Domain: "svc.example.com", Header: "x-api-key", Format: "%s"}},
+				},
+			}},
+		}
+		require.NoError(t, ValidateArtifact(a))
+		require.NotEmpty(t, a.Warnings, "precondition: the domain must start out uncovered")
+
+		a.Caps.Network.Allow = append(a.Caps.Network.Allow, "svc.example.com")
+		require.NoError(t, ValidateArtifact(a))
+		require.Empty(t, a.Warnings, "the warning must clear once the domain is covered, got %v", a.Warnings)
 	})
 
 	t.Run("apikey_inject_domain_covered_by_wildcard_no_warning", func(t *testing.T) {
@@ -905,7 +927,7 @@ func TestValidateArtifact(t *testing.T) {
 			}},
 		}
 		require.NoError(t, ValidateArtifact(a))
-		require.True(t, hasWarningContaining(a.Warnings, `apiKey.inject[0].domain "api.example.com" is not covered`),
+		require.True(t, hasWarningContaining(a.Warnings, `credentials[0] (service "svc") inject[0].domain "api.example.com"`),
 			"a port-range allow entry never matches, so it must still warn; got %v", a.Warnings)
 	})
 

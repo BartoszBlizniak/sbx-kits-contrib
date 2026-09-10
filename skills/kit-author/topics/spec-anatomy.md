@@ -319,7 +319,7 @@ Entry formats:
 
 | Pattern | Example | Matches | Status |
 |---|---|---|---|
-| `<domain>` | `api.example.com` | Exact host, default port 443 | **P2 — implemented** |
+| `<domain>` | `api.example.com` | Exact host, no port — matches any port | **P2 — implemented** |
 | `<domain>:<port>` | `api.example.com:8080` | Exact host, specific port | **P2 — implemented** |
 | `*.<domain>` | `*.example.com` | Exactly one DNS label (e.g. `api.example.com`, `cdn.example.com`). Does **not** match `example.com` itself or `a.b.example.com`. | **P2 — implemented** |
 | `**.<domain>` | `**.example.com` | One or more DNS labels (e.g. `api.example.com`, `a.b.example.com`). | **Enforced** |

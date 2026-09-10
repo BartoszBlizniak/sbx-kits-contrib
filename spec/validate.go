@@ -321,6 +321,16 @@ func ValidateArtifact(a *Artifact) error {
 		allowedDomains = a.Caps.Network.Allow
 	}
 
+	// This class of warning is validator-owned: drop every prior instance so
+	// revalidation reflects the artifact's current state, not its history.
+	retained := make([]string, 0, len(a.Warnings))
+	for _, w := range a.Warnings {
+		if !strings.HasPrefix(w, uncoveredDomainWarningPrefix) {
+			retained = append(retained, w)
+		}
+	}
+	a.Warnings = retained
+
 	for i, c := range a.Credentials {
 		// SPEC-v2 §5.4 makes service REQUIRED on every credential entry: it is
 		// the identity the user-side bindings file matches on. For OAuth it
@@ -346,13 +356,9 @@ func ValidateArtifact(a *Artifact) error {
 		if c.ApiKey != nil {
 			for j, inj := range c.ApiKey.Inject {
 				if inj.Domain != "" && !allowListCovers(inj.Domain, allowedDomains) {
-					msg := fmt.Sprintf(
-						"credentials[%d] (service %q): apiKey.inject[%d].domain %q is not covered by permissions.network.allow",
-						i, c.Service, j, inj.Domain)
-					// A caller may revalidate the same artifact; don't re-append.
-					if !slices.Contains(a.Warnings, msg) {
-						a.Warnings = append(a.Warnings, msg)
-					}
+					a.Warnings = append(a.Warnings, fmt.Sprintf(
+						"%scredentials[%d] (service %q) inject[%d].domain %q",
+						uncoveredDomainWarningPrefix, i, c.Service, j, inj.Domain))
 				}
 			}
 		}
@@ -561,6 +567,10 @@ func ValidateApiKey(a *ApiKey, schemaVersion string) error {
 	}
 	return nil
 }
+
+// uncoveredDomainWarningPrefix tags a validator-owned warning class so
+// ValidateArtifact can find and drop its own prior instances on revalidation.
+const uncoveredDomainWarningPrefix = "apiKey inject domain not covered by permissions.network.allow: "
 
 // allowListCovers mirrors sbx's runtime enforcement: a port range or other
 // non-numeric, non-"*" port never matches, so it doesn't count as coverage.

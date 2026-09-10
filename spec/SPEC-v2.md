@@ -549,7 +549,7 @@ Entry formats:
 
 | Pattern | Example | Status |
 |---|---|---|
-| exact host | `api.example.com` (default port 443) | **Enforced** |
+| exact host | `api.example.com` (no port — matches any port) | **Enforced** |
 | exact host + port | `api.example.com:8080` | **Enforced** |
 | single-label wildcard | `*.example.com` (exactly one label; not `example.com`, not `a.b.example.com`) | **Enforced** |
 | multi-label wildcard | `**.example.com` | **Enforced** — matches one or more labels |

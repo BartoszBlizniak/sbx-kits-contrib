@@ -559,6 +559,13 @@ func TestValidateApiKey(t *testing.T) {
 		require.ErrorContains(t, ValidateApiKey(a, "2"), "not a valid shell identifier")
 	})
 
+	// The shell-identifier shape check is not v2-gated: only the
+	// non-empty requirement is, so a malformed v1 name is rejected too.
+	t.Run("malformed_name_rejected_v1", func(t *testing.T) {
+		a := &ApiKey{Name: "bad-name", Inject: []ApiKeyInject{{Domain: "api.example.com", Header: "x-api-key", Format: "%s"}}}
+		require.ErrorContains(t, ValidateApiKey(a, "1"), "not a valid shell identifier")
+	})
+
 	t.Run("valid_underscore_leading_name_accepted", func(t *testing.T) {
 		a := &ApiKey{Name: "_OK_NAME2", Inject: []ApiKeyInject{{Domain: "api.example.com", Header: "x-api-key", Format: "%s"}}}
 		require.NoError(t, ValidateApiKey(a, "2"))
@@ -605,7 +612,7 @@ func TestValidateApiKey(t *testing.T) {
 	})
 
 	t.Run("username_only_valid", func(t *testing.T) {
-		a := &ApiKey{Name: "TOKEN", Inject: []ApiKeyInject{{Domain: "d.example.com", Username: "x-access-token", Format: "%s"}}}
+		a := &ApiKey{Name: "TOKEN", Inject: []ApiKeyInject{{Domain: "d.example.com", Username: "x-access-token"}}}
 		require.NoError(t, ValidateApiKey(a, "2"))
 	})
 

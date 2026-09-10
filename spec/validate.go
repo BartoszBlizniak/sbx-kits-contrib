@@ -551,6 +551,9 @@ func ValidateApiKey(a *ApiKey, schemaVersion string) error {
 	if a.Name == "" && schemaVersion == "2" {
 		return fmt.Errorf("apiKey: name is required")
 	}
+	if a.Name != "" && !shellIdentifierPattern.MatchString(a.Name) {
+		return fmt.Errorf("apiKey: name %q is not a valid shell identifier (letters, digits, underscores; can't start with a digit)", a.Name)
+	}
 	for j, inj := range a.Inject {
 		if inj.Domain == "" {
 			return fmt.Errorf("apiKey: inject[%d].domain is required", j)

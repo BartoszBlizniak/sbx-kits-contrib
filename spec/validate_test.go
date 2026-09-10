@@ -596,6 +596,14 @@ func TestValidateApiKey(t *testing.T) {
 		require.NoError(t, ValidateApiKey(a, "2"))
 	})
 
+	// header alone has no template to substitute the credential into, so it
+	// never actually injects at runtime — only the username/Basic path can
+	// omit format.
+	t.Run("header_without_format_rejected", func(t *testing.T) {
+		a := &ApiKey{Name: "TOKEN", Inject: []ApiKeyInject{{Domain: "d.example.com", Header: "x-api-key"}}}
+		require.ErrorContains(t, ValidateApiKey(a, "2"), "sets header but no format")
+	})
+
 	t.Run("username_only_valid", func(t *testing.T) {
 		a := &ApiKey{Name: "TOKEN", Inject: []ApiKeyInject{{Domain: "d.example.com", Username: "x-access-token", Format: "%s"}}}
 		require.NoError(t, ValidateApiKey(a, "2"))
@@ -834,6 +842,40 @@ func TestValidateArtifact(t *testing.T) {
 			Credentials: []Credential{{Service: "sample_proxy", ApiKey: &ApiKey{Name: "SAMPLE_PROXY_TOKEN"}}},
 		}
 		require.NoError(t, ValidateArtifact(a))
+	})
+
+	// proxyManaged: true copies apiKey.name into the derived
+	// Environment.ProxyManaged list; a malformed name must still be
+	// attributed to the credential, not to that derived list.
+	t.Run("proxymanaged_malformed_name_errors_as_apikey_not_environment", func(t *testing.T) {
+		yamlBytes := []byte(`
+schemaVersion: "2"
+kind: mixin
+name: creds-proxy-managed
+permissions:
+  network:
+    allow:
+      - api.example.com
+credentials:
+  - service: svc
+    apiKey:
+      name: bad-name
+      proxyManaged: true
+      inject:
+        - domain: api.example.com
+          header: x-api-key
+          format: "%s"
+`)
+		art, err := LoadArtifactFromBytes(yamlBytes)
+		require.NoError(t, err)
+		require.Equal(t, []string{"bad-name"}, art.Environment.ProxyManaged,
+			"precondition: the name must have propagated to the derived environment list")
+
+		err = ValidateArtifact(art)
+		require.ErrorContains(t, err, "apiKey: name")
+		require.ErrorContains(t, err, "not a valid shell identifier")
+		require.NotContains(t, err.Error(), "environment: proxyManaged",
+			"error must be attributed to the credential, not the derived environment list")
 	})
 
 	t.Run("apikey_explicit_header_and_format_valid", func(t *testing.T) {

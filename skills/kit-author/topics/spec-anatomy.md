@@ -260,7 +260,9 @@ credentials:
 
 **Enforcement:** every `apiKey.inject[].domain` MUST appear in `permissions.network.allow`. There is no auto-derived egress from credentials. `sbx kit validate` warns (but does not fail) when it detects an uncovered domain; the engine performs the authoritative enforcement, and a missing domain surfaces at load or sandbox-create time (SPEC-v2 §6).
 
-An inject entry MUST also set at least one of `header` or `username` — one with neither has nothing for the proxy to inject and fails `sbx kit validate`. `username` MUST NOT contain `:` — HTTP Basic (RFC 7617) treats the first colon as the user/password delimiter, so a colon-bearing username can't authenticate as declared; `sbx kit validate` rejects it.
+An inject entry MUST also set at least one of `header` or `username` — one with neither has nothing for the proxy to inject and fails `sbx kit validate`. A `header`-bearing entry with no `username` MUST also set `format`, or there is no template to substitute the credential into. `username` MUST NOT contain `:` — HTTP Basic (RFC 7617) treats the first colon as the user/password delimiter, so a colon-bearing username can't authenticate as declared; `sbx kit validate` rejects it.
+
+`apiKey.name` is REQUIRED on a v2 spec, and whenever it's set (v1 or v2) it MUST be a valid shell identifier — letters, digits, underscores, not starting with a digit — since the engine uses it as an environment-variable name.
 
 ### OAuth shape
 

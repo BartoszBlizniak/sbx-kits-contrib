@@ -622,7 +622,7 @@ credentials:
 
 | Field | Type | Rules |
 |---|---|---|
-| `name` | string | REQUIRED. Env-var name. The engine sets it to the literal `proxy-managed` sentinel in-container when the credential is wired. |
+| `name` | string | REQUIRED. Env-var name — MUST be a valid shell identifier when set, on both v1 and v2 specs. The engine sets it to the literal `proxy-managed` sentinel in-container when the credential is wired. |
 | `proxyManaged` | bool | When `true`, the sentinel is set in-container (re-expresses the removed v1 `environment.proxyManaged`). |
 | `inject[].domain` | string | REQUIRED. MUST appear in `permissions.network.allow`. |
 | `inject[].header` | string | The HTTP header to set. |
@@ -631,7 +631,9 @@ credentials:
 | `inject[].scheme` | string | Decode-time sugar (see below). Mutually exclusive with `format`. Always empty on the normalized artifact. |
 
 An inject entry MUST set at least one of `header` or `username`; one with
-neither has nothing for the proxy to inject and is invalid.
+neither has nothing for the proxy to inject and is invalid. A `header`-bearing
+entry with no `username` MUST also set `format` — without one there is no
+template to substitute the credential into.
 
 **`scheme` sugar:**
 
@@ -830,9 +832,13 @@ the per-field rules above:
   `schemaVersion "2"` spec — the v1 `network.serviceDomains` +
   `network.serviceAuth` fold can legitimately produce a header-only inject
   with no name, so that shape stays accepted on the `schemaVersion "1"` path;
+  whenever `name` is non-empty (v1 or v2) it MUST be a valid shell identifier —
+  only the non-empty requirement is v2-gated, the shape requirement is not;
   each `inject[].domain` non-empty; `inject[].format`, when set, contains
   exactly one `%s`; each inject entry sets at least one of `header` or
-  `username` (one with neither injects nothing); `username`, when set, does
+  `username` (one with neither injects nothing), and a `header`-bearing entry
+  with no `username` also requires `format` (otherwise there is no template to
+  substitute the credential into); `username`, when set, does
   not contain `:` (HTTP Basic's user/password delimiter). Separately, `ValidateArtifact`
   emits a non-fatal warning — it does not reject the kit — when an inject
   domain is absent from `permissions.network.allow`; the engine still

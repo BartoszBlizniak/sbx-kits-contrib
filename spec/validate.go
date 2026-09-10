@@ -310,12 +310,6 @@ func ValidateArtifact(a *Artifact) error {
 	if err := ValidatePublishedPorts(a.PublishedPorts); err != nil {
 		return err
 	}
-	if err := ValidateEnvironmentPolicy(a.Environment); err != nil {
-		return err
-	}
-	if err := ValidateCommandsPolicy(a.Commands); err != nil {
-		return err
-	}
 	var allowedDomains []string
 	if a.Caps != nil && a.Caps.Network != nil {
 		allowedDomains = a.Caps.Network.Allow
@@ -331,6 +325,9 @@ func ValidateArtifact(a *Artifact) error {
 	}
 	a.Warnings = retained
 
+	// Credentials validate before Environment: a v2 apiKey.proxyManaged: true
+	// copies its name into Environment.ProxyManaged, so an author must see a
+	// malformed name as "apiKey: name ...", not "environment: proxyManaged ...".
 	for i, c := range a.Credentials {
 		// SPEC-v2 §5.4 makes service REQUIRED on every credential entry: it is
 		// the identity the user-side bindings file matches on. For OAuth it
@@ -362,6 +359,13 @@ func ValidateArtifact(a *Artifact) error {
 				}
 			}
 		}
+	}
+
+	if err := ValidateEnvironmentPolicy(a.Environment); err != nil {
+		return err
+	}
+	if err := ValidateCommandsPolicy(a.Commands); err != nil {
+		return err
 	}
 
 	for i, f := range a.Files {
@@ -563,6 +567,9 @@ func ValidateApiKey(a *ApiKey, schemaVersion string) error {
 		}
 		if inj.Header == "" && inj.Username == "" {
 			return fmt.Errorf("apiKey: inject[%d] sets neither header nor username, so it injects nothing", j)
+		}
+		if inj.Header != "" && inj.Username == "" && inj.Format == "" {
+			return fmt.Errorf("apiKey: inject[%d] sets header but no format, so it injects nothing", j)
 		}
 		if strings.Contains(inj.Username, ":") {
 			return fmt.Errorf("apiKey: inject[%d].username must not contain \":\" (HTTP Basic treats the first colon as the user/password delimiter)", j)

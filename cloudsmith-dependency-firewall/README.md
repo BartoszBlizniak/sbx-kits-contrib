@@ -85,6 +85,15 @@ Docker Hub is denied too, so `docker run alpine` inside the sandbox fails unless
 
 To deny more hosts, add rules on the host with `sbx policy deny network <host>` (add `--sandbox <name>` to scope them) or fork the kit and extend `permissions.network.deny`.
 
+### Composing with other kits
+
+Deny wins over every kit's allowlist, so kits that fetch from a public registry during install or startup change behavior:
+
+- Kits that `npm install` or `pip install` at install time (in this repo: `t3code`, `playwright`, `kernel`, `ecc`, `claude-mem`, `smolagents`) fail `sbx create` with the firewall alone. List `cloudsmith-repo` before them and give the repository npm and PyPI upstreams; their installs then go through the repository (verified: a later kit's install step sees `NPM_CONFIG_REGISTRY` and `PIP_INDEX_URL`, as root and as agent).
+- Kits that pull images from Docker Hub (`qemu`, `openclaw`, `nanoclaw`) break. Image names are not redirected; mirror the images in Cloudsmith or leave the firewall out.
+- Runtime `npx` launchers (`claude-acp`, `codex-acp`) work only with `cloudsmith-repo` composed.
+- `packages-through-sfw` replaces the `npm` and `pip` binaries with shims; stacking it with these kits is untested.
+
 ### Why these domains
 
 The kit allows nothing. It denies:
@@ -97,7 +106,7 @@ The kit allows nothing. It denies:
 | `index.crates.io`, `static.crates.io`, `crates.io` | crates.io index, downloads, legacy site |
 | `repo1.maven.org`, `repo.maven.apache.org` | Maven Central |
 | `api.nuget.org`, `www.nuget.org`, `globalcdn.nuget.org`, `azuresearch-usnc.nuget.org`, `azuresearch-ussc.nuget.org` | nuget.org v3 feed, legacy v2 feed, download CDN, search hosts |
-| `registry-1.docker.io`, `auth.docker.io`, `production.cloudflare.docker.com`, `index.docker.io` | Docker Hub registry, token endpoint, blob CDN, legacy index |
+| `registry-1.docker.io`, `auth.docker.io`, `production.cloudfront.docker.com`, `production.cloudflare.docker.com`, `index.docker.io` | Docker Hub registry, token endpoint, both blob CDN names, legacy index |
 
 ## Cleanup
 

@@ -60,9 +60,11 @@ permissions:
       - globalcdn.nuget.org
       - azuresearch-usnc.nuget.org
       - azuresearch-ussc.nuget.org
-      # Docker Hub: registry, token endpoint, blob CDN and legacy index.
+      # Docker Hub: registry, token endpoint, both blob CDN names seen in
+      # redirects (cloudfront verified live on 2026-09-10), and the legacy index.
       - registry-1.docker.io
       - auth.docker.io
+      - production.cloudfront.docker.com
       - production.cloudflare.docker.com
       - index.docker.io
 

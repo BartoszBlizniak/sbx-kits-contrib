@@ -33,6 +33,7 @@ Prerequisites:
 
 - The repository has [upstreams](https://docs.cloudsmith.com/repositories/upstreams) for the formats in use. Without them it serves only what was pushed.
 - Apply this kit when creating a sandbox with `--kit`. Recreate an existing sandbox to add it.
+- List this kit before kits whose install runs `npm` or `pip`; their installs then go through the repository. `bun` is not configured.
 - The base image has `npm` (all standard templates do). `~/.cargo/config.toml`, `~/.m2/settings.xml` and `~/.nuget/NuGet/NuGet.Config` are overwritten on every start.
 - Tested with sbx 0.42.x.
 

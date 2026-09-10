@@ -186,11 +186,37 @@ sandbox on a known revision of this kit:
 sbx run --kit "docker.io/sbx/openclaw-kit:20260828-4da0c58e0844b8358e0353c020bf7a438e01f8ca" openclaw
 ```
 
-That pins **kit content**: the spec, the egress policy, the startup scripts. It
-does not pin the environment they run in. `sandbox.image` is
-`docker.io/sbx/openclaw-image:latest`, a rolling tag, so a new sandbox boots
-whatever that image holds at create time — the `OPENCLAW_VERSION` pinned in the
-`Dockerfile` as of its last rebuild, on a base template that floats by design.
+That pins **kit content**: the spec, the egress policy, the startup scripts. On
+its own it leaves the environment rolling. `sandbox.image` is
+`docker.io/sbx/openclaw-image:latest`, deliberately a rolling tag — a nightly
+rebuild is how a new OpenClaw release reaches kit users at all — so a new
+sandbox boots whatever that image holds at create time.
+
+To pin the environment too, name the image with `--template`. The image
+publishes the same `<YYYYMMDD>-<sha>` scheme, and an explicit `--template`
+takes precedence over the one the kit declares:
+
+```console
+sbx run --kit "docker.io/sbx/openclaw-kit:<kit-tag>" \
+  --template "docker.io/sbx/openclaw-image:<image-tag>" \
+  openclaw
+```
+
+Both together fix the whole thing: kit content, and the OpenClaw, Node and
+Chromium versions inside. Two caveats. This is a **local**-only combination —
+a cloud create rejects `--template` alongside a kit, because its bake owns the
+base image. And the two tags are not derivable from each other: they match per
+build, one date computed for the whole run, but the image is also rebuilt
+nightly on an unchanged commit, so it carries dated tags whose sha repeats and
+which have no kit counterpart. So read both lists rather than deriving one tag
+from the other — that is why the two are written as separate placeholders
+above. The kit artifact is an OCI artifact and the image is an image, so they
+are listed with different tools:
+
+```console
+oras repo tags docker.io/sbx/openclaw-kit
+docker buildx imagetools inspect docker.io/sbx/openclaw-image:latest
+```
 
 [PUBLISHING.md](../PUBLISHING.md#tags) has the scheme, and why there is no bare
 `<sha>` tag.
